@@ -17,11 +17,11 @@ const CreateUser = () => {
       username: userNameRef.current.value,
       password: passwordRef.current.value,
       email: emailRef.current.value,
-      firstName: firstNameRef.current.value,
-      lastName: lastNameRef.current.value,
+      firstname: firstNameRef.current.value,
+      lastname: lastNameRef.current.value,
     };
 
-    const initialDeposit = parseInt(initialDepositRef.current.value);
+    const amount = parseInt(initialDepositRef.current.value);
 
     const response = await fetch("http://localhost:5000/users", {
       method: "POST",
@@ -31,7 +31,7 @@ const CreateUser = () => {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ user, initialDeposit }),
+      body: JSON.stringify({ user, amount }),
     });
 
     if (response.ok) {

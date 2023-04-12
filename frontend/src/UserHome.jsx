@@ -1,5 +1,5 @@
 import BigButton from "./BigButton";
-import getAccount from "./getAccount";
+import getBalance from "./getBalance";
 import { useState, useEffect } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 
@@ -19,8 +19,8 @@ const UserHome = () => {
 
     const quickBalance = () => {
 
-        getAccount((account) => {
-            setMessage(`You have $${account.balance} in your account`)
+        getBalance((balance) => {
+            setMessage(`You have $${balance} in your account`)
         })
 
     }

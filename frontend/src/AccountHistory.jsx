@@ -27,7 +27,7 @@ const AccountHistory = () => {
                 </li>
                 {account.transactions.map((transaction, index) => {
 
-                    const date = new Date(transaction.time);
+                    const date = new Date(transaction.created);
 
                     return (
 

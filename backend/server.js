@@ -3,13 +3,14 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import cors from "cors";
-import getAccount from "./getAccount.js";
 import deposit from "./deposit.js";
+import mysql from 'mysql';
+import initialDeposit from "./initialDeposit.js";
 
 const authenticate = (req, res, next) => {
 
   const token = req.headers.authorization.split(' ')[1].replace(';', '');
-  jwt.verify(token, SECRET, (err, userName) => {
+  jwt.verify(token, SECRET, (err, id) => {
 
     if (err) {
 
@@ -17,7 +18,7 @@ const authenticate = (req, res, next) => {
       return;
     }
 
-    req.userName = userName;
+    req.id = id;
     next();
 
   })
@@ -26,113 +27,183 @@ const authenticate = (req, res, next) => {
 
 const PORT = 5000;
 export const SECRET = "iu1sdfhnfvxl576nhbiofhdx367sdfjoixfvhn2252xuy";
+const dbLogin = 'root';
+const dbPassword = '';
 const app = express();
+
+export const connection = mysql.createConnection({
+  host: 'localhost',
+  user: dbLogin,
+  password: dbPassword,
+  database: 'piggydb'
+})
 
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(cors());
 
-export const users = [{
-  username: 'chris',
-  password: '123',
-  email: 'christoffer@christoffergylin.com',
-  firstName: 'Christoffer',
-  lastName: 'Gylin',
-  id: 0
-}];
-export const accounts = [{ id: 0, userId: 0, balance: 1000, transactions: [] }];
-let userIdCount = 1;
-let accountIdCount = 1;
-
 app.post("/users", (req, res) => {
-  const user = req.body.user;
-  user.id = userIdCount++;
+  const { username, password, email, firstname, lastname } = req.body.user;
 
-  users.push(user);
+  connection.query('INSERT INTO users (username, password, email, firstname, lastname) VALUES (?, ?, ?, ?, ?)',
+    [username, password, email, firstname, lastname], (err, results) => {
 
-  const account = {
-    id: accountIdCount++,
-    userId: user.id,
-    balance: 0,
-    transactions: [],
-  };
+      if (err) {
 
-  deposit(account, req.body.initialDeposit, true);
+        console.log(err);
+        res.sendStatus(500);
+      } else {
 
-  accounts.push(account);
-  console.log("users:", users);
-  console.log("accounts:", accounts);
-  const token = jwt.sign(user.username, SECRET);
-  res.json({ token, firstName: user.firstName, lastName: user.lastName, });
+        const userId = results.insertId;
 
+        connection.query('INSERT INTO accounts (user_id) VALUES (?)',
+          [userId], (err, results) => {
+
+            if (err) {
+
+              console.log(err);
+              res.sendStatus(500);
+
+            } else {
+
+              const token = jwt.sign(userId, SECRET);
+              res.json({ token, firstName: firstname, lastName: lastname, });
+              initialDeposit(userId, req.body.amount)
+            }
+
+          })
+      }
+    })
 });
 
 app.post("/sessions", (req, res) => {
   const user = req.body;
-  const dbUser = users.find(
-    (userElement) => userElement.username === user.username
-  );
 
-  if (dbUser.password === user.password) {
-    const token = jwt.sign(dbUser.username, SECRET);
-    res.json({ token, firstName: dbUser.firstName, lastName: dbUser.lastName });
-  } else {
-    res.send("error");
-  }
+  connection.query('SELECT password, id, firstname, lastname FROM users WHERE username = ?', [user.username], (err, results) => {
+
+    if (err) {
+
+      console.log(err);
+      res.sendStatus(500);
+
+    } else {
+
+      const dbUser = results[0];
+
+      if (dbUser) {
+
+        if (dbUser.password === user.password) {
+          const token = jwt.sign(dbUser.id, SECRET);
+          res.json({ token, firstName: dbUser.firstname, lastName: dbUser.lastname });
+        } else {
+          res.sendStatus(403);
+        }
+
+      } else {
+
+        res.sendStatus(403);
+
+      }
+    }
+  })
 });
 
 app.get("/me/accounts", authenticate, (req, res) => {
 
+  connection.query('SELECT id FROM accounts WHERE user_id = ?', [req.id], (err, results) => {
 
-  const account = getAccount(req.userName);
+    if (err) {
+      console.log(err);
+      res.sendStatus(500);
+    } else {
 
-  if (account) {
+      connection.query('SELECT * from transactions WHERE account_id = ?', [results[0].id], (err, results) => {
 
-    res.send(account);
+        if (err) {
 
-  } else {
+          console.log(err);
+          res.sendStatus(500);
 
-    res.sendStatus(500);
+        } else {
 
-  }
+          const sorted = results.sort((a, b) => {
+
+            if (a.created < b.created) {
+
+              return 1;
+
+            } else if (a.created > b.created) {
+
+              return -1;
+
+            } else {
+
+              return 0;
+
+            }
+
+          });
+
+          res.send({ transactions: sorted })
+
+        }
+      })
+    }
+  })
+});
+
+app.get("/me/balance", authenticate, (req, res) => {
+
+  connection.query('SELECT balance FROM accounts WHERE user_id = ?', [req.id], (err, results) => {
+
+    if (err) {
+      console.log(err);
+      res.sendStatus(500);
+    } else {
+
+      res.json({ balance: results[0].balance });
+
+    }
+
+  })
 
 });
 
 app.get("/me/auth", authenticate, (req, res) => {
 
-  const user = users.find((userElement) => userElement.username === req.userName);
+  connection.query('SELECT id, firstname, lastname FROM users WHERE id = ?', [req.id], (err, results) => {
 
-  if (user) {
+    if (err) {
 
-    res.json({ firstName: user.firstName, lastName: user.lastName, });
+      console.log(err);
+      res.sendStatus(500);
 
-  } else {
+    } else {
 
-    res.sendStatus(500);
+      res.json({ firstName: results[0].firstname, lastName: results[0].lastname, });
 
-  }
-
+    }
+  })
 });
 
 app.post('/me/deposits', authenticate, (req, res) => {
 
-  const account = getAccount(req.userName);
-
-  if (account) {
-
-    deposit(account, req.body.amount);
-    console.log(account);
-    res.send({ balance: account.balance });
-
-  } else {
-
-    res.sendStatus(500);
-
-  }
-
+  deposit(req, res);
 
 })
 
-app.listen(PORT, () => {
-  console.log("Server listening on port " + PORT);
-});
+connection.connect((err) => {
+  if (err) {
+
+    console.log(err);
+
+  } else {
+
+    console.log('db connected');
+    app.listen(PORT, () => {
+      console.log("Server listening on port " + PORT);
+    });
+  }
+})
+
+

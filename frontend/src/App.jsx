@@ -26,9 +26,9 @@ function App() {
 
 
     if (response.ok) {
-      console.log(response)
+
       const data = await response.json();
-      console.log(data);
+
       setName({ firstName: data.firstName, lastName: data.lastName, });
       setIsLoggedIn(true);
       navigate('/home');

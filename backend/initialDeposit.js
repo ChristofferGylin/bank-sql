@@ -1,27 +1,16 @@
 import { connection } from "./server.js";
 
-const deposit = (req, res) => {
+const initialDeposit = (id, amount) => {
 
-    const amount = parseInt(req.body.amount);
+    amount = parseInt(amount);
 
-    let note = '';
+    let note = 'Initial Deposit';
 
-    if (amount < 0) {
-
-        note = 'Withdraw';
-
-    } else {
-
-        note = 'Deposit';
-
-    }
-
-    connection.query('SELECT id, balance FROM accounts WHERE user_id = ?', [req.id], (err, results) => {
+    connection.query('SELECT id, balance FROM accounts WHERE user_id = ?', [id], (err, results) => {
 
         if (err) {
 
             console.log(err);
-            res.sendStatus(500);
 
         } else {
 
@@ -32,7 +21,6 @@ const deposit = (req, res) => {
                 if (err) {
 
                     console.log(err);
-                    res.sendStatus(500);
 
                 } else {
 
@@ -41,11 +29,6 @@ const deposit = (req, res) => {
                         if (err) {
 
                             console.log(err);
-                            res.sendStatus(500);
-
-                        } else {
-
-                            res.send({ balance: newBalance })
 
                         }
                     })
@@ -55,4 +38,4 @@ const deposit = (req, res) => {
     })
 }
 
-export default deposit;
+export default initialDeposit;
